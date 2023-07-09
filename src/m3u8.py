@@ -247,11 +247,12 @@ class ConvertToM3U8():
         # 加密
         self.generate_enctyption_key()
         self.generate_enctyption_key_info(
-            f'{self.url}/{self.output_dir}/key_{self.quality}.key'
+            f'{self.url}/{self.output_dir}/key_{self.quality}.key',
             f'{self.output_dir}/key_{self.quality}.key'
         )
 
         self.video_convert_to_encrypted_m3u8(
+            f'{self.output_dir}/{self.video_name}-{self.quality}.ts',
             f'{self.output_dir}/key_{self.quality}.keyinfo',
             f'{self.output_dir}',
             f'{self.video_name}-{self.quality}'
