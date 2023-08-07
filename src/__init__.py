@@ -4,7 +4,7 @@ import json
 import os
 
 config = ConfigParser()
-config.read('.conf/config.ini')
+config.read('conf/config.ini')
 
 # ******log設定******
 # 關閉log功能 輸入選項 (true, True, 1) 預設 不關閉
