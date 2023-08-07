@@ -1,5 +1,7 @@
 from configparser import ConfigParser
 import logging
+import json
+import os
 
 config = ConfigParser()
 config.read('.conf/config.ini')
@@ -13,11 +15,20 @@ LOG_PATH = config.get('LOG', 'LOG_PATH', fallback='logs')
 LOG_FILE_DISABLE = config.getboolean('LOG', 'LOG_FILE_DISABLE', fallback=False)
 # 設定紀錄log等級 DEBUG,INFO,WARNING,ERROR,CRITICAL 預設WARNING
 LOG_LEVEL = config.get('LOG', 'LOG_LEVEL', fallback='WARNING')
-# 指定log大小(輸入數字) 單位byte, 與 LOG_DAYS 只能輸入一項 若都輸入 LOG_SIZE優先
-LOG_SIZE = config.getint('LOG', 'LOG_SIZE', fallback=1)
-# 指定保留log天數(輸入數字) 預設7
-LOG_DAYS = config.getint('LOG', 'LOG_DAYS', fallback=7)
 
 
 if LOG_DISABLE:
     logging.disable()
+
+
+OUTPUT_PATH = config.get('SETTING', 'OUTPUT_PATH', fallback='output')
+
+if not os.path.exists(OUTPUT_PATH):
+    os.makedirs(OUTPUT_PATH)
+
+# 下載m3u8 json檔路徑 預設 conf/m3u8_source.json
+M3U8_JSON_PATH = config.get('SETTING', 'M3U8_JSON_PATH', fallback='conf/m3u8_source.json')
+M3U8_INFO = []
+if os.path.exists(M3U8_JSON_PATH):
+    with open(M3U8_JSON_PATH, 'r') as f:
+        M3U8_INFO = json.loads(f.read())

@@ -1,0 +1,11 @@
+[
+  {
+    "execute": true,
+    "m3u8_source_path": "sample.txt",
+    "options": {
+      "m3u8_headers": {},
+      "ts_headers": {},
+      "ts_url": null
+    }
+  }
+]

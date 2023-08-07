@@ -4,7 +4,7 @@ from pymediainfo import MediaInfo
 import os
 
 
-m3u8_logger = Log()
+m3u8_logger = Log('CONVERT')
 m3u8_logger.set_level(LOG_LEVEL)
 if not LOG_FILE_DISABLE:
     m3u8_logger.set_file_handler()
