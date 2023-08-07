@@ -14,7 +14,7 @@ m3u8_logger.set_msg_handler()
 class ConvertToM3U8():
 
     def __init__(self, url: str, video_path: str, video_name: str, output_dir: str = 'output', quality: str = '720', encode: str = 'h264', test: bool = False) -> None:
-        """_summary_
+        """下載 並轉檔成 m3u8
 
         Args:
             url (str): 上傳位置網址

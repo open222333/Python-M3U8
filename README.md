@@ -45,3 +45,21 @@ options:
   -o OUTPUT, --output OUTPUT
                         輸出資料夾
 ```
+
+## main-preview.py
+
+```bash
+usage: main-preview.py [-h] -u URL [-o OUTPUT] [-l {DEBUG,INFO,WARNING,ERROR,CRITICAL}]
+
+將m3u8網址生成預覽片
+
+options:
+  -h, --help            show this help message and exit
+
+通用:
+  -u URL, --url URL     影片位址
+  -o OUTPUT, --output OUTPUT
+                        輸出資料夾
+  -l {DEBUG,INFO,WARNING,ERROR,CRITICAL}, --log_level {DEBUG,INFO,WARNING,ERROR,CRITICAL}
+                        設定紀錄log等級 DEBUG,INFO,WARNING,ERROR,CRITICAL 預設WARNING
+```
