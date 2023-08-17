@@ -1,7 +1,7 @@
 [
   {
     "execute": true,
-    "m3u8_source_path": "sample.txt",
+    "m3u8_source_path": "conf/sample.txt",
     "options": {
       "m3u8_headers": {},
       "ts_headers": {},

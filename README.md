@@ -38,7 +38,7 @@ M3U8_JSON_PATH=
 ```bash
 usage: main-download.py [-h] [-o OUTPUT]
 
-根據設定 批量下載m3u8
+根據設定 下載m3u8
 
 options:
   -h, --help            show this help message and exit
