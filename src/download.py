@@ -197,7 +197,9 @@ class M3U8():
             _type_: _description_
         """
         try:
-            # 對content進行填充操作，使用了pad函數並指定了pkcs7填充方式。這是對資料應用PKCS7填充，以確保其長度達到16位元組的倍數。
+            logger.info('進行 aes-128 cbc模式 解碼')
+            # 對content進行填充操作，使用了pad函數並指定了pkcs7填充方式。
+            # 這是對資料應用PKCS7填充，以確保其長度達到16位元組的倍數。
             content = pad(content, 16, style='pkcs7')
             cipher = AES.new(key, AES.MODE_CBC, bytes.fromhex(iv))
             decrypted_data = cipher.decrypt(content)
@@ -206,8 +208,9 @@ class M3U8():
             decrypted_data = decrypted_data[:-padding]
 
             if create_decrypted_file:
-                with open(os.path.join(self.output_dir, f'decrypted_{self.file_name}.ts'), 'wb') as f:
+                with open(os.path.join(self.output_dir, f'{self.file_name}.ts'), 'wb') as f:
                     f.write(decrypted_data)
+
             return decrypted_data
         except Exception as err:
             logger.error(f'{err}\nkey: {key}\niv: {iv}\n{content}\n{decrypted_data}')
