@@ -4,7 +4,7 @@ import sys
 class ProgressBar():
     '''進度條'''
 
-    def __init__(self, title='Progress', symbol='=', bar_size=50) -> None:
+    def __init__(self, title='Progress', symbol='=', bar_size=50, **kwargs) -> None:
         """
 
         Args:
@@ -13,7 +13,7 @@ class ProgressBar():
             bar_size (int, optional): 進度條大小(滿值有多少符號). Defaults to 50.
         """
         '''進度表屬性'''
-        self.title = title
+        self.title = kwargs.get('title', 'Progress')
         self.symbol = symbol
         self.bar_size = bar_size
         # 迴圈內 使用

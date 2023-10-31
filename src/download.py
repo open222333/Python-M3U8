@@ -7,6 +7,7 @@ import subprocess
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
 from fake_useragent import FakeUserAgent
+from urllib.parse import urlparse
 from urllib3 import disable_warnings
 from urllib3.exceptions import InsecureRequestWarning
 from .logger import Log
@@ -72,18 +73,26 @@ class M3U8():
         """設置 ts 網址 前綴
 
         Args:
-            ts_url_prefix (str): _description_
+            ts_url_prefix (str):
+            範例:
+            https://www.example.com/path/to/page
+            內的
+            https://www.example.com/path/to/
+
+            最後需要斜線
         """
         self.ts_url_prefix = ts_url_prefix
 
     def __set_m3u8_from_url(self, **headers):
         try:
+            logger.info(f'從網址 {self.m3u8_file_source} 取得m3u8內容')
             self.m3u8_content = requests.get(self.m3u8_file_source, headers=headers)
         except Exception as err:
             logger.error(err, exc_info=True)
 
     def __set_m3u8_from_file(self):
         try:
+            logger.info(f'從本地檔案 {self.m3u8_file_source} 取得m3u8內容')
             with open(self.m3u8_file_source, 'r') as f:
                 self.m3u8_content = f.read()
         except Exception as err:
@@ -101,11 +110,22 @@ class M3U8():
         hex_key = binascii.hexlify(binary_key).decode()
         return hex_key
 
+    def __parse_ts_url_prefix(self):
+        """解析m3u8網址 將網址部分設置為 ts_url_prefix
+        """
+        logger.info(f'解析 ts url')
+        r = urlparse(self.m3u8_file_source)
+        dir_path, _ = os.path.split(r.path)
+        ts_url_prefix = f'{r.scheme}://{r.netloc}{dir_path}/'
+        logger.info(f'解析 ts url 結果: {ts_url_prefix}')
+        self.set_ts_url_prefix(ts_url_prefix)
+
     def __parse_m3u8(self):
         """解析m3u8內容
         取得ts網址串列, key_url
         """
         try:
+            logger.info('解析m3u8內容')
             content = self.m3u8_content.text.split('\n')
             for i in content:
                 if i == '':
@@ -203,6 +223,7 @@ class M3U8():
             bool: _description_
         """
         try:
+            logger.info('下載並合併ts檔')
             count = 0
             for ts_url in ts_urls:
                 bar = ProgressBar(title=self.file_name)
@@ -217,7 +238,7 @@ class M3U8():
                 count += 1
                 bar(total=len(ts_urls), done=count, in_loop=True)
         except requests.exceptions.MissingSchema as err:
-            logger.error('m3u8 網址失效')
+            logger.error(f'網址無效: {ts_url}')
             return False
         except Exception as err:
             logger.error(f'{ts_name}\n{ts_url}\n異常 {err}', exc_info=True)
@@ -246,6 +267,8 @@ class M3U8():
                     )
             if self.is_ffmpeg_installed():
                 self.covert_to_mp4()
+            else:
+                raise RuntimeError('沒有安裝 ffmpeg, 無法執行轉檔 mp4')
         except Exception as err:
             logger.error(err, exc_info=True)
 
