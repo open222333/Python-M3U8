@@ -4,7 +4,7 @@ import sys
 class ProgressBar():
     '''進度條'''
 
-    def __init__(self, title='Progress', symbol='=', bar_size=50, **kwargs) -> None:
+    def __init__(self, symbol='=', bar_size=50, **kwargs) -> None:
         """
 
         Args:
