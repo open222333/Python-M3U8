@@ -15,16 +15,9 @@ from .progress_bar import ProgressBar
 from . import LOG_LEVEL, LOG_FILE_DISABLE
 
 
-logger = Log('DOWNLOAD')
-logger.set_level(LOG_LEVEL)
-if not LOG_FILE_DISABLE:
-    logger.set_file_handler()
-logger.set_msg_handler
-
-
 class M3U8():
 
-    def __init__(self, m3u8_file_source: str, file_name: str, output_dir: str = None) -> None:
+    def __init__(self, m3u8_file_source: str, file_name: str, output_dir: str = None, **kwargs) -> None:
         """_summary_
 
         Args:
@@ -52,6 +45,13 @@ class M3U8():
         self.m3u8_headers = {'user-agent': self.ua}
         self.ts_headers = {'user-agent': self.ua}
         disable_warnings(InsecureRequestWarning)
+
+        log_level = kwargs.get('log_level', LOG_LEVEL)
+        self.logger = Log('M3U8')
+        self.logger.set_level(log_level)
+        if not LOG_FILE_DISABLE:
+            self.logger.set_file_handler()
+        self.logger.set_msg_handler()
 
     def set_m3u8_headers(self, m3u8_headers: dict):
         """設置 m3u8 標頭
@@ -85,18 +85,18 @@ class M3U8():
 
     def __set_m3u8_from_url(self, **headers):
         try:
-            logger.info(f'從網址 {self.m3u8_file_source} 取得m3u8內容')
+            self.logger.info(f'從網址 {self.m3u8_file_source} 取得m3u8內容')
             self.m3u8_content = requests.get(self.m3u8_file_source, headers=headers)
         except Exception as err:
-            logger.error(err, exc_info=True)
+            self.logger.error(err, exc_info=True)
 
     def __set_m3u8_from_file(self):
         try:
-            logger.info(f'從本地檔案 {self.m3u8_file_source} 取得m3u8內容')
+            self.logger.info(f'從本地檔案 {self.m3u8_file_source} 取得m3u8內容')
             with open(self.m3u8_file_source, 'r') as f:
                 self.m3u8_content = f.read()
         except Exception as err:
-            logger.error(err, exc_info=True)
+            self.logger.error(err, exc_info=True)
 
     def __binary_to_hex(self, binary_key: bytes):
         """二進制轉十六進制
@@ -113,11 +113,11 @@ class M3U8():
     def __parse_ts_url_prefix(self):
         """解析m3u8網址 將網址部分設置為 ts_url_prefix
         """
-        logger.info(f'解析 ts url')
+        self.logger.info(f'解析 ts url')
         r = urlparse(self.m3u8_file_source)
         dir_path, _ = os.path.split(r.path)
         ts_url_prefix = f'{r.scheme}://{r.netloc}{dir_path}/'
-        logger.info(f'解析 ts url 結果: {ts_url_prefix}')
+        self.logger.info(f'解析 ts url 結果: {ts_url_prefix}')
         self.set_ts_url_prefix(ts_url_prefix)
 
     def __parse_m3u8(self):
@@ -125,7 +125,7 @@ class M3U8():
         取得ts網址串列, key_url
         """
         try:
-            logger.info('解析m3u8內容')
+            self.logger.info('解析m3u8內容')
             content = self.m3u8_content.text.split('\n')
             for i in content:
                 if i == '':
@@ -143,21 +143,21 @@ class M3U8():
                         r = requests.get(self.key_url)
                         self.key = r.content
                         # self.key = self.__binary_to_hex(r.content)
-                        logger.info(f'key: {self.key}')
+                        self.logger.info(f'key: {self.key}')
                     if iv_match:
                         iv_value = iv_match.group(1)
                         if iv_value.startswith('0x'):
                             iv_value = iv_value[2:]
                         self.iv = iv_value
-                        logger.info(f'iv: {self.iv}')
+                        self.logger.info(f'iv: {self.iv}')
                 elif not i.startswith("#"):
                     if self.ts_url_prefix:
                         self.ts_urls.append(f'{self.ts_url_prefix}{i.strip()}')
                     else:
                         self.ts_urls.append(i.strip())
-            logger.debug(f'ts列表: {self.ts_urls}')
+            self.logger.debug(f'ts列表: {self.ts_urls}')
         except Exception as err:
-            logger.error(err, exc_info=True)
+            self.logger.error(err, exc_info=True)
 
     def is_ffmpeg_installed(self) -> bool:
         """ffmpeg 是否已安裝
@@ -179,11 +179,11 @@ class M3U8():
         result = subprocess.run(command, capture_output=True, text=True)
 
         if result.returncode == 0:
-            logger.info("Command executed successfully.")
+            self.logger.info("Command executed successfully.")
             if os.path.exists(self.ts_file_path):
                 os.remove(self.ts_file_path)
         else:
-            logger.error(f"Command encountered an error.\nError output: {result.stderr}")
+            self.logger.error(f"Command encountered an error.\nError output: {result.stderr}")
 
     def aes_128_cbc_decrypt(self, content, key, iv, create_decrypted_file: bool = False):
         """aes-128 cbc模式 解碼
@@ -197,7 +197,7 @@ class M3U8():
             _type_: _description_
         """
         try:
-            logger.info('進行 aes-128 cbc模式 解碼')
+            self.logger.info('進行 aes-128 cbc模式 解碼')
             # 對content進行填充操作，使用了pad函數並指定了pkcs7填充方式。
             # 這是對資料應用PKCS7填充，以確保其長度達到16位元組的倍數。
             content = pad(content, 16, style='pkcs7')
@@ -213,7 +213,8 @@ class M3U8():
 
             return decrypted_data
         except Exception as err:
-            logger.error(f'{err}\nkey: {key}\niv: {iv}\n{content}\n{decrypted_data}')
+            self.logger.error(f'{err}\nkey: {key}\niv: {iv}\n{content}\n{decrypted_data}')
+            return None
 
     def download_and_merge_ts(self, ts_urls: list, headers: dict) -> bool:
         """下載並合併ts檔
@@ -226,7 +227,7 @@ class M3U8():
             bool: _description_
         """
         try:
-            logger.info('下載並合併ts檔')
+            self.logger.info('下載並合併ts檔')
             count = 0
             for ts_url in ts_urls:
                 bar = ProgressBar(title=self.file_name)
@@ -241,10 +242,10 @@ class M3U8():
                 count += 1
                 bar(total=len(ts_urls), done=count, in_loop=True)
         except requests.exceptions.MissingSchema as err:
-            logger.error(f'網址無效: {ts_url}')
+            self.logger.error(f'網址無效: {ts_url}')
             return False
         except Exception as err:
-            logger.error(f'{ts_name}\n{ts_url}\n異常 {err}', exc_info=True)
+            self.logger.error(f'{ts_name}\n{ts_url}\n異常 {err}', exc_info=True)
             return False
         return True
 
@@ -254,37 +255,60 @@ class M3U8():
                 self.__set_m3u8_from_url()
             else:
                 self.__set_m3u8_from_file()
+
+            if not hasattr(self, 'm3u8_content'):
+                raise RuntimeError('取得m3u8內容 失敗')
+
             self.__parse_m3u8()
+
+            if len(self.ts_urls) == 0:
+                raise RuntimeError('解析m3u8內容 失敗')
+
             if not os.path.exists(self.ts_file_path):
-                self.download_and_merge_ts(
+                download_and_merge_ts_result = self.download_and_merge_ts(
                     ts_urls=self.ts_urls,
                     headers=self.ts_headers
                 )
+
+                if not download_and_merge_ts_result:
+                    raise RuntimeError(f'下載並合併ts檔 失敗')
+
             if self.key:
                 with open(self.ts_file_path, 'rb') as f:
-                    self.aes_128_cbc_decrypt(
+                    decrypt_result = self.aes_128_cbc_decrypt(
                         content=f.read(),
                         key=self.key,
                         iv=self.iv,
                         create_decrypted_file=True
                     )
+
+                if decrypt_result == None:
+                    raise RuntimeError('解碼失敗')
+
             if self.is_ffmpeg_installed():
                 self.covert_to_mp4()
             else:
                 raise RuntimeError('沒有安裝 ffmpeg, 無法執行轉檔 mp4')
         except Exception as err:
-            logger.error(err, exc_info=True)
+            self.logger.error(err, exc_info=True)
 
 
 class M3U8Script():
 
-    def __init__(self, datas: list, output_dir: str) -> None:
+    def __init__(self, datas: list, output_dir: str, **kwargs) -> None:
         """批量執行m3u8下載
 
         Args:
             datas (list): 輸入資料格式, [{ "filename": 檔名,"url": m3u8網址 },...]
             output_dir (str): 輸出資料夾
         """
+        log_level = kwargs.get('log_level', LOG_LEVEL)
+        self.logger = Log('M3U8Script')
+        self.logger.set_level(log_level)
+        if not LOG_FILE_DISABLE:
+            self.logger.set_file_handler()
+        self.logger.set_msg_handler()
+
         try:
             self.datas = datas
             self.output_dir = output_dir
@@ -293,7 +317,7 @@ class M3U8Script():
             self.ts_headers = None
             self.per = 100
         except Exception as err:
-            logger.error(err, exc_info=True)
+            self.logger.error(err, exc_info=True)
 
     def set_per(self, per: int):
         """設置 每次執行幾筆
@@ -330,7 +354,7 @@ class M3U8Script():
     def run(self):
         total = len(self.datas)
         done = 0
-        logger.info(f'{done}/{total} 0.0%')
+        self.logger.info(f'{done}/{total} 0.0%')
         start = 0
         while True:
             end = start + self.per
@@ -355,9 +379,9 @@ class M3U8Script():
 
                     # 計算百分比
                     precent = float(round(100 * done / total, 1))
-                    logger.info(f'{done}/{total} {precent}%')
+                    self.logger.info(f'{done}/{total} {precent}%')
                 except Exception as err:
-                    logger.error(err, exc_info=True)
+                    self.logger.error(err, exc_info=True)
 
             if end == total:
                 break
