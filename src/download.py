@@ -249,7 +249,11 @@ class M3U8():
             return False
         return True
 
-    def run(self):
+    def run(self, covert_to_mp4: bool = False):
+        """
+        Args:
+            covert_to_mp4 (bool, optional): 是否轉檔成 mp4. Defaults to False.
+        """
         try:
             if re.search(r'[a-zA-z]+://[^\s]*', self.m3u8_file_source):
                 self.__set_m3u8_from_url()
@@ -284,11 +288,15 @@ class M3U8():
 
                 if decrypt_result == None:
                     raise RuntimeError('解碼失敗')
-
-            if self.is_ffmpeg_installed():
-                self.covert_to_mp4()
+            if covert_to_mp4:
+                if self.is_ffmpeg_installed():
+                    self.covert_to_mp4()
+                else:
+                    self.logger.info('沒有安裝 ffmpeg, 無法執行轉檔 mp4')
+                    return os.path.join(self.output_dir, f'{self.file_name}.ts')
+                return os.path.join(self.output_dir, f'{self.file_name}.mp4')
             else:
-                raise RuntimeError('沒有安裝 ffmpeg, 無法執行轉檔 mp4')
+                return os.path.join(self.output_dir, f'{self.file_name}.ts')
         except Exception as err:
             self.logger.error(err, exc_info=True)
 
