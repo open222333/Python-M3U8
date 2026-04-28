@@ -1,6 +1,6 @@
 import os
 import re
-import re
+import sys
 import binascii
 import requests
 import subprocess
@@ -93,7 +93,7 @@ class M3U8():
     def __set_m3u8_from_file(self):
         try:
             self.logger.info(f'從本地檔案 {self.m3u8_file_source} 取得m3u8內容')
-            with open(self.m3u8_file_source, 'r') as f:
+            with open(self.m3u8_file_source, 'r', encoding='utf-8') as f:
                 self.m3u8_content = f.read()
         except Exception as err:
             self.logger.error(err, exc_info=True)
@@ -159,31 +159,77 @@ class M3U8():
         except Exception as err:
             self.logger.error(err, exc_info=True)
 
-    def is_ffmpeg_installed(self) -> bool:
-        """ffmpeg 是否已安裝
-
-        Returns:
-            bool: _description_
-        """
+    def _get_ffmpeg_exe(self) -> str:
+        """取得 ffmpeg 執行檔路徑，優先使用 imageio-ffmpeg 內建版本"""
         try:
-            subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True)
+            from imageio_ffmpeg import get_ffmpeg_exe
+            return get_ffmpeg_exe()
+        except ImportError:
+            pass
+        return 'ffmpeg'
+
+    def is_ffmpeg_installed(self) -> bool:
+        """ffmpeg 是否已安裝"""
+        try:
+            ffmpeg_exe = self._get_ffmpeg_exe()
+            subprocess.run([ffmpeg_exe, "-version"], capture_output=True, encoding='utf-8', errors='replace')
             return True
         except FileNotFoundError:
             return False
 
-    def covert_to_mp4(self):
-        """轉檔成mp4
-        """
-        output_file = os.path.join(self.output_dir, f'{self.file_name}.mp4')
-        command = ["ffmpeg", "-i", self.ts_file_path, "-c", "copy", output_file]
-        result = subprocess.run(command, capture_output=True, text=True)
+    def _get_ts_duration(self, ffmpeg_exe: str) -> float:
+        """取得 ts 檔總長度（秒），用於計算轉檔進度"""
+        result = subprocess.run(
+            [ffmpeg_exe, "-i", self.ts_file_path],
+            capture_output=True,
+            encoding='utf-8',
+            errors='replace'
+        )
+        m = re.search(r'Duration:\s*(\d+):(\d+):(\d+\.\d+)', result.stderr)
+        if m:
+            h, mn, s = m.groups()
+            return int(h) * 3600 + int(mn) * 60 + float(s)
+        return None
 
-        if result.returncode == 0:
-            self.logger.info("Command executed successfully.")
+    def covert_to_mp4(self):
+        """轉檔成 mp4，含即時進度條"""
+        ffmpeg_exe = self._get_ffmpeg_exe()
+        output_file = os.path.join(self.output_dir, f'{self.file_name}.mp4')
+        duration = self._get_ts_duration(ffmpeg_exe)
+
+        command = [
+            ffmpeg_exe, "-y", "-i", self.ts_file_path,
+            "-c", "copy", "-progress", "pipe:1", output_file
+        ]
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL
+        )
+
+        for line_bytes in iter(process.stdout.readline, b''):
+            line = line_bytes.decode('utf-8', errors='replace').strip()
+            if line.startswith('out_time_us='):
+                try:
+                    current_us = int(line.split('=')[1])
+                    if duration and duration > 0:
+                        pct = min(100.0, current_us / (duration * 1_000_000) * 100)
+                        bar_filled = int(pct / 2)
+                        bar = '=' * bar_filled + ' ' * (50 - bar_filled)
+                        sys.stdout.write(f'\r轉換 {self.file_name}:[{bar}] {pct:.1f}%')
+                        sys.stdout.flush()
+                except ValueError:
+                    pass
+
+        process.wait()
+        sys.stdout.write('\n')
+
+        if process.returncode == 0:
+            self.logger.info(f'轉檔成功: {output_file}')
             if os.path.exists(self.ts_file_path):
                 os.remove(self.ts_file_path)
         else:
-            self.logger.error(f"Command encountered an error.\nError output: {result.stderr}")
+            self.logger.error(f'轉檔失敗: {self.file_name}')
 
     def aes_128_cbc_decrypt(self, content, key, iv, create_decrypted_file: bool = False):
         """aes-128 cbc模式 解碼

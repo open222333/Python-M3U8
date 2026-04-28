@@ -1,0 +1,15 @@
+name: python-m3u8
+channels:
+  - defaults
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+    - boto3==1.27.0
+    - botocore==1.30.0
+    - fake-useragent==1.1.1
+    - imageio-ffmpeg
+    - opencv-python==4.8.0.74
+    - pycryptodome==3.18.0
+    - pymediainfo==6.0.1
+    - requests==2.31.0

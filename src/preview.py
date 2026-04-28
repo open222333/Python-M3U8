@@ -261,12 +261,12 @@ class M3U8ToPreview():
 
         # 將檔案名稱寫入"merge_video.txt"檔案中
         preview_logger.info('將檔案名稱寫入"merge_video.txt"檔案中')
-        with open(merge_video_txt, "w") as f:
+        with open(merge_video_txt, "w", encoding='utf-8') as f:
             for clip_file in clip_files:
                 preview_logger.info(f'將檔案名稱寫入"merge_video.txt"檔案中: file {self.temp_dir}/{clip_file}')
                 f.write(f"file '{self.temp_dir}/{clip_file}'\n")
 
-        with open(merge_video_txt, 'r') as f:
+        with open(merge_video_txt, 'r', encoding='utf-8') as f:
             preview_logger.debug(f'merge_video_txt內容: {f.read()}')
 
         if output_dir:

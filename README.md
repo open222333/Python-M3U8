@@ -6,9 +6,19 @@ M3U8 串流視訊下載與預覽工具。支援批量下載 M3U8 串流影片，
 
 - [專案說明](#專案說明)
 - [安裝依賴](#安裝依賴)
+  - [conda（建議）](#conda建議)
+  - [pip](#pip)
 - [腳本說明](#腳本說明)
+  - [main-download.py（批量下載）](#main-downloadpy批量下載)
+  - [main-preview.py（生成預覽片）](#main-previewpy生成預覽片)
 - [設定檔說明](#設定檔說明)
+  - [conf/config.ini.default](#confconfiginidefault)
+  - [conf/m3u8_source.json](#confm3u8_sourcejson)
+  - [來源清單檔案格式](#來源清單檔案格式m3u8_source_path)
 - [執行流程](#執行流程)
+  - [批量下載流程](#批量下載流程)
+  - [預覽片生成流程](#預覽片生成流程)
+- [執行範例](#執行範例)
 - [注意事項](#注意事項)
 
 ## 專案說明
@@ -20,6 +30,21 @@ M3U8 串流視訊下載與預覽工具。支援批量下載 M3U8 串流影片，
 
 ## 安裝依賴
 
+**conda（建議）**
+
+```powershell
+# 首次使用前（只需一次）
+conda init powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+# 重開 VS Code 後
+
+# 建立環境
+conda env create -f environment.yml
+conda activate python-m3u8
+```
+
+**pip**
+
 ```bash
 pip install -r requirements.txt
 ```
@@ -29,10 +54,11 @@ pip install -r requirements.txt
 ### main-download.py（批量下載）
 
 ```bash
-usage: python main-download.py [-o OUTPUT]
+usage: python main-download.py [-o OUTPUT] [--no-mp4]
 
 參數：
   -o OUTPUT, --output OUTPUT   輸出資料夾（預設 output）
+  --no-mp4                     下載後保留 ts 檔，不轉換為 mp4（預設會轉換）
 ```
 
 根據 `conf/m3u8_source.json` 的設定批量下載 M3U8 影片。
@@ -94,11 +120,11 @@ cp conf/config.ini.default conf/config.ini
 
 ### 來源清單檔案格式（m3u8_source_path）
 
-每行格式為 `檔名:網址`：
+每行格式為 `檔名,網址`（逗號分隔）：
 
 ```
-video1:https://example.com/stream1/index.m3u8
-video2:https://example.com/stream2/index.m3u8
+video1,https://example.com/stream1/index.m3u8
+video2,https://example.com/stream2/index.m3u8
 ```
 
 ## 執行流程
@@ -108,12 +134,13 @@ video2:https://example.com/stream2/index.m3u8
 ```
 讀取 conf/m3u8_source.json
   → 遍歷 execute: true 的設定
-    → 讀取 m3u8_source_path 指定的清單檔（每行 檔名:網址）
+    → 讀取 m3u8_source_path 指定的清單檔（每行 檔名,網址）
       → 對每個 M3U8 網址：
         1. 請求 M3U8 播放清單（帶 m3u8_headers）
         2. 解析 TS 片段清單
         3. 下載所有 TS 片段（帶 ts_headers）
-        4. 合併輸出至 OUTPUT 資料夾
+        4. 合併輸出為 .ts 檔
+        5. 轉換為 .mp4 並刪除 .ts（預設開啟，--no-mp4 可停用）
 ```
 
 ### 預覽片生成流程
@@ -128,8 +155,11 @@ video2:https://example.com/stream2/index.m3u8
 ## 執行範例
 
 ```bash
-# 批量下載，輸出至 downloads 資料夾
+# 批量下載，自動轉換 mp4（預設）
 python main-download.py -o downloads
+
+# 批量下載，保留 ts 不轉換
+python main-download.py -o downloads --no-mp4
 
 # 生成預覽片
 python main-preview.py -u "https://example.com/stream/index.m3u8" -o previews
@@ -145,3 +175,4 @@ python main-preview.py -u "https://example.com/stream/index.m3u8" -l DEBUG
 - `ts_url` 用於 TS 片段網址與 M3U8 不在同一 domain 的情況。
 - 輸出資料夾不存在時會自動建立。
 - 部分受 DRM 保護的串流無法直接下載，需確認串流的授權方式。
+- mp4 轉換使用 `imageio-ffmpeg` 內建的 ffmpeg binary，**不需要另外安裝 ffmpeg**。轉換完成後 .ts 檔會自動刪除。

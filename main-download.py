@@ -6,6 +6,8 @@ from pprint import pformat
 
 parser = ArgumentParser(description='根據設定 下載m3u8')
 parser.add_argument('-o', '--output', type=str, help='輸出資料夾', default=OUTPUT_PATH)
+parser.add_argument('--no-mp4', dest='convert_mp4', action='store_false', help='下載後不轉換為 mp4，保留 ts 檔')
+parser.set_defaults(convert_mp4=True)
 args = parser.parse_args()
 
 if __name__ == '__main__':
@@ -14,14 +16,15 @@ if __name__ == '__main__':
     logger.set_level(LOG_LEVEL)
 
     setting_info = {
-        '輸出資料夾': args.output
+        '輸出資料夾': args.output,
+        '轉換 mp4': args.convert_mp4
     }
     logger.info(f'{pformat(setting_info)}')
 
     for info in M3U8_INFO:
         if info['execute']:
             logger.debug(f'執行設定:\n{pformat(info)}')
-            with open(info['m3u8_source_path']) as f:
+            with open(info['m3u8_source_path'], encoding='utf-8') as f:
                 items = f.read().split('\n')
             for item in items:
                 if item != '':
@@ -39,4 +42,4 @@ if __name__ == '__main__':
                         m3u8.set_ts_url(info['options']['ts_url'])
                     m3u8.set_m3u8_headers(info['options']['m3u8_headers'])
                     m3u8.set_ts_headers(info['options']['ts_headers'])
-                    m3u8.run()
+                    m3u8.run(covert_to_mp4=args.convert_mp4)

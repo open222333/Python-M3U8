@@ -4,7 +4,7 @@ import json
 import os
 
 config = ConfigParser()
-config.read('conf/config.ini')
+config.read('conf/config.ini', encoding='utf-8')
 
 # ******log設定******
 # 關閉log功能 輸入選項 (true, True, 1) 預設 不關閉
@@ -30,5 +30,5 @@ if not os.path.exists(OUTPUT_PATH):
 M3U8_JSON_PATH = config.get('SETTING', 'M3U8_JSON_PATH', fallback='conf/m3u8_source.json')
 M3U8_INFO = []
 if os.path.exists(M3U8_JSON_PATH):
-    with open(M3U8_JSON_PATH, 'r') as f:
+    with open(M3U8_JSON_PATH, 'r', encoding='utf-8') as f:
         M3U8_INFO = json.loads(f.read())
