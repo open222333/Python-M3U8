@@ -38,6 +38,7 @@ class M3U8():
 
         self.ts_url_prefix = None
         self.ts_urls = []
+        self.ts_segments = []
         self.file_name = file_name
         self.ts_file_path = os.path.join(self.output_dir, f'{self.file_name}.ts')
         ua = FakeUserAgent()
@@ -121,41 +122,45 @@ class M3U8():
         self.set_ts_url_prefix(ts_url_prefix)
 
     def __parse_m3u8(self):
-        """解析m3u8內容
-        取得ts網址串列, key_url
-        """
+        """解析m3u8內容，追蹤每個片段的加密狀態"""
         try:
             self.logger.info('解析m3u8內容')
             content = self.m3u8_content.text.split('\n')
-            for i in content:
-                if i == '':
-                    pass
-                elif i.startswith("#EXT-X-KEY"):
-                    # 使用正則表達式提取 METHOD、URI 和 IV
-                    method_match = re.search(r'METHOD=(\w+)', i)
-                    uri_match = re.search(r'URI="([^"]+)"', i)
-                    iv_match = re.search(r'IV=([\da-fA-Fx]+)', i)
-
-                    if method_match:
-                        self.crypto_method = method_match.group(1)
-                    if uri_match:
-                        self.key_url = uri_match.group(1)
-                        r = requests.get(self.key_url)
-                        self.key = r.content
-                        # self.key = self.__binary_to_hex(r.content)
-                        self.logger.info(f'key: {self.key}')
-                    if iv_match:
-                        iv_value = iv_match.group(1)
-                        if iv_value.startswith('0x'):
-                            iv_value = iv_value[2:]
-                        self.iv = iv_value
-                        self.logger.info(f'iv: {self.iv}')
-                elif not i.startswith("#"):
-                    if self.ts_url_prefix:
-                        self.ts_urls.append(f'{self.ts_url_prefix}{i.strip()}')
-                    else:
-                        self.ts_urls.append(i.strip())
-            self.logger.debug(f'ts列表: {self.ts_urls}')
+            current_key = None
+            current_iv = None
+            for line in content:
+                line = line.strip()
+                if not line:
+                    continue
+                if line.startswith("#EXT-X-KEY"):
+                    method_match = re.search(r'METHOD=(\w+)', line)
+                    uri_match = re.search(r'URI="([^"]+)"', line)
+                    iv_match = re.search(r'IV=([\da-fA-Fx]+)', line)
+                    method = method_match.group(1) if method_match else None
+                    if method == 'NONE':
+                        current_key = None
+                        current_iv = None
+                        self.logger.info('加密方式: NONE')
+                    elif method:
+                        self.crypto_method = method
+                        if uri_match:
+                            key_url = uri_match.group(1)
+                            r = requests.get(key_url)
+                            current_key = r.content
+                            self.logger.info(f'key: {current_key}')
+                        if iv_match:
+                            iv_value = iv_match.group(1)
+                            if iv_value.startswith('0x'):
+                                iv_value = iv_value[2:]
+                            current_iv = iv_value
+                            self.logger.info(f'iv: {current_iv}')
+                elif not line.startswith("#"):
+                    url = line
+                    if not url.startswith('http') and self.ts_url_prefix:
+                        url = f'{self.ts_url_prefix}{url.lstrip("/")}'
+                    self.ts_segments.append({'url': url, 'key': current_key, 'iv': current_iv})
+                    self.ts_urls.append(url)
+            self.logger.debug(f'ts片段數: {len(self.ts_segments)}')
         except Exception as err:
             self.logger.error(err, exc_info=True)
 
@@ -262,11 +267,11 @@ class M3U8():
             self.logger.error(f'{err}\nkey: {key}\niv: {iv}\n{content}\n{decrypted_data}')
             return None
 
-    def download_and_merge_ts(self, ts_urls: list, headers: dict) -> bool:
-        """下載並合併ts檔
+    def download_and_merge_ts(self, ts_segments: list, headers: dict) -> bool:
+        """下載並合併ts檔（含各片段解密）
 
         Args:
-            ts_urls (list): ts網址串列
+            ts_segments (list): [{'url': ..., 'key': ..., 'iv': ...}, ...]
             headers (dict)
 
         Returns:
@@ -274,24 +279,30 @@ class M3U8():
         """
         try:
             self.logger.info('下載並合併ts檔')
-            count = 0
-            for ts_url in ts_urls:
-                bar = ProgressBar(title=self.file_name)
-                match = re.split(r'/', ts_url)
-                ts_name = match[len(match) - 1]
-                ts_content = requests.get(url=ts_url, headers=headers, stream=True)
-                with open(self.ts_file_path, 'ab') as f:
-                    data_length = 0
-                    for chunk in ts_content.iter_content(chunk_size=1024):
-                        data_length += len(chunk)
-                        f.write(chunk)
-                count += 1
-                bar(total=len(ts_urls), done=count, in_loop=True)
-        except requests.exceptions.MissingSchema as err:
-            self.logger.error(f'網址無效: {ts_url}')
-            return False
+            total = len(ts_segments)
+            bar = ProgressBar(title=self.file_name)
+            for count, segment in enumerate(ts_segments, 1):
+                ts_url = segment['url']
+                seg_key = segment['key']
+                seg_iv = segment['iv']
+                try:
+                    ts_content = requests.get(url=ts_url, headers=headers, stream=True)
+                    data = b''.join(ts_content.iter_content(chunk_size=1024))
+                    if seg_key:
+                        data = self.aes_128_cbc_decrypt(data, seg_key, seg_iv)
+                        if data is None:
+                            self.logger.warning(f'解碼失敗，跳過: {ts_url}')
+                            bar(total=total, done=1, in_loop=True)
+                            continue
+                    with open(self.ts_file_path, 'ab') as f:
+                        f.write(data)
+                except requests.exceptions.MissingSchema:
+                    self.logger.warning(f'網址無效，跳過: {ts_url}')
+                except Exception as err:
+                    self.logger.warning(f'下載失敗，跳過: {ts_url}\n{err}')
+                bar(total=total, done=1, in_loop=True)
         except Exception as err:
-            self.logger.error(f'{ts_name}\n{ts_url}\n異常 {err}', exc_info=True)
+            self.logger.error(f'異常 {err}', exc_info=True)
             return False
         return True
 
@@ -311,29 +322,17 @@ class M3U8():
 
             self.__parse_m3u8()
 
-            if len(self.ts_urls) == 0:
+            if len(self.ts_segments) == 0:
                 raise RuntimeError('解析m3u8內容 失敗')
 
             if not os.path.exists(self.ts_file_path):
                 download_and_merge_ts_result = self.download_and_merge_ts(
-                    ts_urls=self.ts_urls,
+                    ts_segments=self.ts_segments,
                     headers=self.ts_headers
                 )
 
                 if not download_and_merge_ts_result:
                     raise RuntimeError(f'下載並合併ts檔 失敗')
-
-            if self.key:
-                with open(self.ts_file_path, 'rb') as f:
-                    decrypt_result = self.aes_128_cbc_decrypt(
-                        content=f.read(),
-                        key=self.key,
-                        iv=self.iv,
-                        create_decrypted_file=True
-                    )
-
-                if decrypt_result == None:
-                    raise RuntimeError('解碼失敗')
             if covert_to_mp4:
                 if self.is_ffmpeg_installed():
                     self.covert_to_mp4()
